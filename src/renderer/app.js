@@ -205,6 +205,21 @@
 
   /* ---------- webview ---------- */
 
+  // The frame's whole emulation state in one ordered call, so toggling one
+  // thing can never leave another half-applied.
+  function applyFrameEmulation(f) {
+    var d = DEVICES[f.dev];
+    var id;
+    try { id = f.webview.getWebContentsId(); } catch (e) { return; }
+    var mobile = d.kind !== 'desktop';
+    f.emulated = mobile && qs.get('emu') !== '0';
+    window.devTester.applyEmulation(id, {
+      metrics: f.emulated ? { w: f.w, h: f.h, dpr: d.dpr } : null,
+      touch: touchOn && mobile,
+      dark: !!f.dark
+    });
+  }
+
   function makeWebview(f) {
     if (f.webview) { f.webview.remove(); f.webview = null; }
     f.emulated = false;
@@ -217,21 +232,7 @@
 
     wv.addEventListener('dom-ready', function () {
       if (f.webview !== wv) return;
-      var d = DEVICES[f.dev];
-      var id = wv.getWebContentsId();
-      if (!f.emulated && d.kind !== 'desktop' && qs.get('emu') !== '0') {
-        f.emulated = true;
-        window.devTester.emulate(id, {
-          screenPosition: 'mobile',
-          screenSize: { width: f.w, height: f.h },
-          viewSize: { width: 0, height: 0 },
-          deviceScaleFactor: d.dpr,
-          viewPosition: { x: 0, y: 0 },
-          scale: 1
-        });
-      }
-      if (f.dark) window.devTester.setDark(id, true);
-      if (touchOn && d.kind !== 'desktop') window.devTester.setTouch(id, true);
+      applyFrameEmulation(f);
     });
     wv.addEventListener('did-navigate', function (e) {
       onNav(f, e.url);
@@ -367,7 +368,7 @@
       f.dark = !f.dark;
       dkBtn.classList.toggle('on', f.dark);
       f.shell.classList.toggle('dark', f.dark);
-      try { window.devTester.setDark(f.webview.getWebContentsId(), f.dark); } catch (e) {}
+      applyFrameEmulation(f);
       saveFrames();
     });
     el.querySelector('.open').addEventListener('click', function () {
@@ -522,9 +523,12 @@
   touchTog.addEventListener('change', function () {
     touchOn = touchTog.checked;
     try { localStorage.setItem('mfdt-touch', touchOn ? '1' : '0'); } catch (e) {}
+    // Apply, then reload: pages read their input capabilities at load time,
+    // so without a reload they behave half-touch, half-mouse.
     frames.forEach(function (f) {
       if (DEVICES[f.dev].kind === 'desktop') return;
-      try { window.devTester.setTouch(f.webview.getWebContentsId(), touchOn); } catch (e) {}
+      applyFrameEmulation(f);
+      if (currentUrl) try { f.webview.reload(); } catch (e) {}
     });
   });
 
@@ -559,6 +563,12 @@
   try { fillRecents(JSON.parse(localStorage.getItem('mfdt-recents') || '[]')); } catch (e) {}
 
   // Test-only flags: exercise the UI without a human at the keyboard.
+  if (qs.get('toggletouch')) {
+    setTimeout(function () {
+      touchTog.checked = !touchTog.checked;
+      touchTog.dispatchEvent(new Event('change'));
+    }, parseInt(qs.get('toggletouch'), 10) || 8000);
+  }
   if (qs.get('shotall') === '1') setTimeout(shotAll, 10000);
   if (qs.get('opendevtools') === '1') {
     setTimeout(function () {

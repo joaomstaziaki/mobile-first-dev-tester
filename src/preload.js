@@ -4,15 +4,13 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('devTester', {
   version: process.versions.electron,
 
-  // Turn on Chromium device emulation (mobile screen, DPR) for a webview.
-  emulate: (webContentsId, params) => ipcRenderer.invoke('emulate', webContentsId, params),
+  // Apply a frame's full emulation state (metrics, touch, dark) in one call.
+  applyEmulation: (webContentsId, state) => ipcRenderer.invoke('apply-emulation', webContentsId, state),
 
   // Open a URL in the user's default browser.
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
 
-  // Emulation toggles (CDP / session level, main process does the work).
-  setDark: (webContentsId, on) => ipcRenderer.invoke('set-dark', webContentsId, on),
-  setTouch: (webContentsId, on) => ipcRenderer.invoke('set-touch', webContentsId, on),
+  // Session-wide network throttling.
   setNetwork: (profile) => ipcRenderer.invoke('set-network', profile),
 
   // Screenshots: full-page capture of a frame, saved under Pictures.

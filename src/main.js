@@ -38,7 +38,7 @@ function createWindow() {
   if (argValue('emu')) query.emu = argValue('emu');
   if (argValue('authfill')) query.authfill = argValue('authfill'); // test-only
   if (argValue('exec')) query.exec = argValue('exec');             // test-only
-  ['darkall', 'touch', 'net', 'zoom', 'shotall', 'opendevtools'].forEach((k) => {  // test-only overrides
+  ['darkall', 'touch', 'net', 'zoom', 'shotall', 'opendevtools', 'toggletouch'].forEach((k) => {  // test-only overrides
     if (argValue(k)) query[k] = argValue(k);
   });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'), { query });
@@ -71,10 +71,32 @@ app.on('web-contents-created', (event, contents) => {
   }
 });
 
-// Chromium device emulation for a frame's webContents (mobile screen, DPR).
-ipcMain.handle('emulate', (event, id, params) => {
+// All of a frame's emulation in one ordered call. CDP first (attaching the
+// debugger can clobber other emulation state), then Electron's device
+// emulation last so the viewport metrics always end up applied.
+ipcMain.handle('apply-emulation', async (event, id, state) => {
   const wc = webContents.fromId(id);
-  if (wc && !wc.isDestroyed()) wc.enableDeviceEmulation(params);
+  if (!wc || wc.isDestroyed()) return;
+  let attached = false;
+  try { attached = wc.debugger.isAttached(); } catch (e) {}
+  if (state.touch || state.dark || attached) {
+    await cdp(id, 'Emulation.setTouchEmulationEnabled',
+      { enabled: !!state.touch, maxTouchPoints: 5 });
+    await cdp(id, 'Emulation.setEmitTouchEventsForMouse',
+      { enabled: !!state.touch, configuration: 'mobile' });
+    await cdp(id, 'Emulation.setEmulatedMedia',
+      { features: [{ name: 'prefers-color-scheme', value: state.dark ? 'dark' : '' }] });
+  }
+  if (state.metrics && !wc.isDestroyed()) {
+    wc.enableDeviceEmulation({
+      screenPosition: 'mobile',
+      screenSize: { width: state.metrics.w, height: state.metrics.h },
+      viewSize: { width: 0, height: 0 },
+      deviceScaleFactor: state.metrics.dpr,
+      viewPosition: { x: 0, y: 0 },
+      scale: 1
+    });
+  }
 });
 
 ipcMain.handle('open-external', (event, url) => {
@@ -91,18 +113,6 @@ function cdp(id, method, params) {
   return wc.debugger.sendCommand(method, params).catch(() => {});
 }
 
-// prefers-color-scheme per frame; '' returns the page to the OS setting.
-ipcMain.handle('set-dark', (event, id, on) => {
-  return cdp(id, 'Emulation.setEmulatedMedia', {
-    features: [{ name: 'prefers-color-scheme', value: on ? 'dark' : '' }]
-  });
-});
-
-// Touch emulation: the mouse emits touch events, like DevTools device mode.
-ipcMain.handle('set-touch', async (event, id, on) => {
-  await cdp(id, 'Emulation.setTouchEmulationEnabled', { enabled: !!on, maxTouchPoints: 5 });
-  await cdp(id, 'Emulation.setEmitTouchEventsForMouse', { enabled: !!on, configuration: 'mobile' });
-});
 
 // Full-page screenshot of a frame: CDP captures beyond the viewport at the
 // frame's real pixel ratio; plain capturePage is the fallback.
