@@ -1,17 +1,43 @@
-// Renderer UI. Task 2: URL bar + one iPhone-style frame whose screen is a
-// real browser viewport (<webview>) with a mobile user agent and 3x DPR.
+// Renderer UI. Task 3: a rail of device frames — presets with per-device
+// user agent, pixel ratio and shell chrome; add / remove / rotate / resize;
+// the setup is remembered across launches.
 (function () {
   'use strict';
 
-  var IPHONE_UA =
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) ' +
-    'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+  /* ---------- device catalog ---------- */
+
+  var UAS = {
+    ios:     'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
+    android: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
+    ipad:    'Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
+    desktop: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+  };
+
+  var DEVICES = {
+    'iphone-se':   { name: 'iPhone SE',         w: 375,  h: 667,  dpr: 2,     kind: 'ios' },
+    'iphone-13':   { name: 'iPhone 13 / 14',    w: 390,  h: 844,  dpr: 3,     kind: 'ios' },
+    'iphone-15':   { name: 'iPhone 15 / 16',    w: 393,  h: 852,  dpr: 3,     kind: 'ios' },
+    'iphone-pm':   { name: 'iPhone 15 Pro Max', w: 430,  h: 932,  dpr: 3,     kind: 'ios' },
+    'galaxy-s23':  { name: 'Galaxy S23',        w: 360,  h: 780,  dpr: 3,     kind: 'android' },
+    'pixel-8':     { name: 'Pixel 8',           w: 412,  h: 915,  dpr: 2.625, kind: 'android' },
+    'ipad-mini':   { name: 'iPad Mini',         w: 768,  h: 1024, dpr: 2,     kind: 'ipad' },
+    'ipad-air':    { name: 'iPad Air',          w: 820,  h: 1180, dpr: 2,     kind: 'ipad' },
+    'desktop':     { name: 'Desktop 1280',      w: 1280, h: 800,  dpr: 1,     kind: 'desktop' },
+    'desktop-xl':  { name: 'Desktop 1440',      w: 1440, h: 900,  dpr: 1,     kind: 'desktop' }
+  };
+  var DEFAULT_SETUP = [
+    { dev: 'iphone-13' }, { dev: 'galaxy-s23' }, { dev: 'desktop' }
+  ];
 
   var urlBox = document.getElementById('url');
-  var frames = Array.prototype.slice.call(document.querySelectorAll('.frame'));
+  var railBox = document.getElementById('frames');
+  var addSel = document.getElementById('adddev');
+  var frames = [];
   var currentUrl = '';
+  var qs = new URLSearchParams(location.search);
 
-  // "localhost:3000" -> http://..., bare hosts -> https://...
+  /* ---------- helpers ---------- */
+
   function toUrl(raw) {
     var p = raw.trim().replace(/^["']|["']$/g, '');
     if (!p) return '';
@@ -24,20 +50,23 @@
     try { return new URL(u).host; } catch (e) { return u; }
   }
 
-  /* ---------- frame ---------- */
+  function setNote(f, msg, warn) {
+    f.note.textContent = msg || '';
+    f.note.className = 'note' + (warn ? ' warn' : '');
+  }
 
-  function buildFrame(f) {
-    f.device = f.getAttribute('data-device');
-    f.screenW = parseInt(f.getAttribute('data-screen'), 10);
-    f.h = parseInt(f.getAttribute('data-h'), 10);
+  function saveFrames() {
+    try {
+      localStorage.setItem('mfdt-frames', JSON.stringify(frames.map(function (f) {
+        return { dev: f.dev, w: f.w, h: f.h };
+      })));
+    } catch (e) {}
+  }
 
-    f.innerHTML =
-      '<div class="bar"><b>' + f.device + '</b>' +
-      '<input class="w" type="number" min="280" max="1400" title="Viewport width, px">×' +
-      '<input class="hh" type="number" min="400" max="2000" title="Screen height, px">' +
-      '<a class="open" title="Open the current URL in your default browser">open</a></div>' +
-      '<div class="note"></div>' +
-      '<div class="shell">' +
+  /* ---------- shell markup per device kind ---------- */
+
+  function shellHtml(kind) {
+    if (kind === 'ios') return (
       '<div class="status"><span>9:41</span><span>●●● ◠ ▮</span></div>' +
       '<div class="screen"></div>' +
       '<div class="safaribar">' +
@@ -45,64 +74,55 @@
       '<div class="tools"><span class="back off">‹</span><span class="fwd off">›</span>' +
       '<span>↑</span><span>☐</span><span>▦</span></div>' +
       '</div>' +
-      '<div class="home"><i></i></div></div>';
+      '<div class="home"><i></i></div>');
+    if (kind === 'android') return (
+      '<div class="status"><span>10:30</span><span>▲ ▮ ▰</span></div>' +
+      '<div class="chromebar">' +
+      '<div class="pill"><span class="lock">🔒</span><span class="host">Search or type URL</span></div>' +
+      '<span class="dots">⋮</span></div>' +
+      '<div class="screen"></div>' +
+      '<div class="home"><i></i></div>');
+    if (kind === 'ipad') return (
+      '<div class="status"><span>9:41</span><span>●●● ◠ ▮</span></div>' +
+      '<div class="padbar">' +
+      '<span class="back off">‹</span><span class="fwd off">›</span>' +
+      '<div class="pill"><span class="lock">🔒</span><span class="host">Search or enter website</span></div>' +
+      '<span>↑</span><span>＋</span><span>▦</span></div>' +
+      '<div class="screen"></div>' +
+      '<div class="home"><i></i></div>');
+    return '<div class="screen"></div>';   // desktop: plain viewport
+  }
 
-    f.shell = f.querySelector('.shell');
-    f.screenBox = f.querySelector('.screen');
-    f.note = f.querySelector('.note');
-    f.pillHost = f.querySelector('.pill .host');
-    f.backBtn = f.querySelector('.tools .back');
-    f.fwdBtn = f.querySelector('.tools .fwd');
+  /* ---------- webview ---------- */
 
-    // The webview is created once; useragent must be set before any load.
+  function makeWebview(f) {
+    if (f.webview) { f.webview.remove(); f.webview = null; }
+    f.emulated = false;
     var wv = document.createElement('webview');
-    wv.setAttribute('useragent', IPHONE_UA);
-    wv.setAttribute('src', 'about:blank');
+    wv.setAttribute('useragent', UAS[DEVICES[f.dev].kind]);
+    wv.setAttribute('src', currentUrl || 'about:blank');
     f.webview = wv;
-    f.screenBox.appendChild(wv);
-
-    var wBox = f.querySelector('.w');
-    var hBox = f.querySelector('.hh');
-    wBox.value = f.screenW;
-    hBox.value = f.h;
-
-    wBox.addEventListener('change', function () {
-      f.screenW = parseInt(wBox.value, 10) || f.screenW;
-      wBox.value = f.screenW;
-      size(f);
-    });
-    hBox.addEventListener('change', function () {
-      f.h = parseInt(hBox.value, 10) || f.h;
-      hBox.value = f.h;
-      size(f);
-    });
-    f.querySelector('.open').addEventListener('click', function () {
-      if (currentUrl) window.devTester.openExternal(currentUrl);
-    });
-
-    f.backBtn.addEventListener('click', function () { if (wv.canGoBack()) wv.goBack(); });
-    f.fwdBtn.addEventListener('click', function () { if (wv.canGoForward()) wv.goForward(); });
+    f.shell.querySelector('.screen').appendChild(wv);
 
     wv.addEventListener('dom-ready', function () {
-      // Real mobile rendering: 3x device pixel ratio, mobile screen semantics.
-      // Applied once; it sticks across navigations in this webview.
-      if (!f.emulated && new URLSearchParams(location.search).get('emu') !== '0') {
+      if (f.webview !== wv) return;
+      var d = DEVICES[f.dev];
+      if (!f.emulated && d.kind !== 'desktop' && qs.get('emu') !== '0') {
         f.emulated = true;
         window.devTester.emulate(wv.getWebContentsId(), {
           screenPosition: 'mobile',
-          screenSize: { width: f.screenW, height: f.h },
-          viewSize: { width: 0, height: 0 },   // 0,0 = use the webview's own size
-          deviceScaleFactor: 3,
+          screenSize: { width: f.w, height: f.h },
+          viewSize: { width: 0, height: 0 },
+          deviceScaleFactor: d.dpr,
           viewPosition: { x: 0, y: 0 },
           scale: 1
         });
       }
     });
-
     wv.addEventListener('did-navigate', function (e) { onNav(f, e.url); });
     wv.addEventListener('did-navigate-in-page', function (e) { onNav(f, e.url); });
     wv.addEventListener('did-fail-load', function (e) {
-      if (e.errorCode === -3 || !e.isMainFrame) return;   // -3 = aborted (normal)
+      if (e.errorCode === -3 || !e.isMainFrame) return;
       setNote(f, 'Could not load ' + (e.validatedURL || currentUrl) + ' — ' +
         e.errorDescription + '. Is the dev server running?', true);
     });
@@ -110,32 +130,114 @@
     wv.addEventListener('did-stop-loading', function () {
       if (f.note.textContent === 'Loading…') setNote(f, '');
     });
-    wv.addEventListener('page-title-updated', function (e) {
-      f.querySelector('.bar b').title = e.title;
-    });
-
     size(f);
   }
 
   function onNav(f, url) {
-    if (url && url !== 'about:blank') {
-      f.pillHost.textContent = hostOf(url);
-      f.querySelector('.pill .lock').style.display = /^https:/.test(url) ? '' : 'none';
+    var pillHost = f.shell.querySelector('.pill .host');
+    var lock = f.shell.querySelector('.pill .lock');
+    if (pillHost && url && url !== 'about:blank') {
+      pillHost.textContent = hostOf(url);
+      lock.style.display = /^https:/.test(url) ? '' : 'none';
     }
-    f.backBtn.classList.toggle('off', !f.webview.canGoBack());
-    f.fwdBtn.classList.toggle('off', !f.webview.canGoForward());
+    var back = f.shell.querySelector('.back');
+    var fwd = f.shell.querySelector('.fwd');
+    if (back) back.classList.toggle('off', !f.webview.canGoBack());
+    if (fwd) fwd.classList.toggle('off', !f.webview.canGoForward());
   }
 
-  function setNote(f, msg, warn) {
-    f.note.textContent = msg || '';
-    f.note.className = 'note' + (warn ? ' warn' : '');
-  }
+  /* ---------- frames ---------- */
 
   function size(f) {
-    f.shell.style.width = f.screenW + 'px';
+    f.shell.style.width = f.w + 'px';
     f.shell.style.height = f.h + 'px';
-    f.webview.style.width = f.screenW + 'px';
-    f.style.width = f.shell.offsetWidth + 'px';
+    f.webview.style.width = f.w + 'px';
+    f.el.style.width = f.shell.offsetWidth + 'px';
+    if (f.emulated) {
+      f.emulated = false;             // re-apply with the new screen size
+      try { f.webview.reload(); } catch (e) {}
+    }
+  }
+
+  function addFrame(cfg) {
+    var f = { dev: cfg.dev };
+    var d = DEVICES[f.dev];
+    if (!d) return;
+    f.w = cfg.w || d.w;
+    f.h = cfg.h || d.h;
+
+    var el = document.createElement('div');
+    el.className = 'frame';
+    f.el = el;
+
+    var options = Object.keys(DEVICES).map(function (k) {
+      return '<option value="' + k + '">' + DEVICES[k].name + '</option>';
+    }).join('');
+
+    el.innerHTML =
+      '<div class="bar">' +
+      '<select class="dev" title="Device preset">' + options + '</select>' +
+      '<input class="w" type="number" min="280" max="2000" title="Viewport width, px">×' +
+      '<input class="hh" type="number" min="400" max="2000" title="Screen height, px">' +
+      '<button class="rot" title="Rotate (swap width and height)">⟳</button>' +
+      '<a class="open" title="Open the current URL in your default browser">open</a>' +
+      '<button class="x" title="Remove this frame">×</button></div>' +
+      '<div class="note"></div>' +
+      '<div class="shell"></div>';
+
+    f.note = el.querySelector('.note');
+    f.shell = el.querySelector('.shell');
+
+    var devSel = el.querySelector('.dev');
+    var wBox = el.querySelector('.w');
+    var hBox = el.querySelector('.hh');
+    devSel.value = f.dev;
+    wBox.value = f.w;
+    hBox.value = f.h;
+
+    function rebuildShell() {
+      var kind = DEVICES[f.dev].kind;
+      f.shell.className = 'shell ' + kind;
+      f.shell.innerHTML = shellHtml(kind);
+      var back = f.shell.querySelector('.back');
+      var fwd = f.shell.querySelector('.fwd');
+      if (back) back.addEventListener('click', function () { if (f.webview.canGoBack()) f.webview.goBack(); });
+      if (fwd) fwd.addEventListener('click', function () { if (f.webview.canGoForward()) f.webview.goForward(); });
+      makeWebview(f);
+    }
+
+    devSel.addEventListener('change', function () {
+      f.dev = devSel.value;
+      var nd = DEVICES[f.dev];
+      f.w = nd.w; f.h = nd.h;
+      wBox.value = f.w; hBox.value = f.h;
+      rebuildShell();
+      saveFrames();
+    });
+    wBox.addEventListener('change', function () {
+      f.w = parseInt(wBox.value, 10) || f.w; wBox.value = f.w; size(f); saveFrames();
+    });
+    hBox.addEventListener('change', function () {
+      f.h = parseInt(hBox.value, 10) || f.h; hBox.value = f.h; size(f); saveFrames();
+    });
+    el.querySelector('.rot').addEventListener('click', function () {
+      var t = f.w; f.w = f.h; f.h = t;
+      wBox.value = f.w; hBox.value = f.h;
+      size(f); saveFrames();
+    });
+    el.querySelector('.open').addEventListener('click', function () {
+      if (currentUrl) window.devTester.openExternal(currentUrl);
+    });
+    el.querySelector('.x').addEventListener('click', function () {
+      frames.splice(frames.indexOf(f), 1);
+      el.remove();
+      saveFrames();
+    });
+
+    railBox.appendChild(el);   // attach first: sizing reads offsetWidth
+    rebuildShell();
+    frames.push(f);
+    return f;
   }
 
   /* ---------- loading ---------- */
@@ -152,9 +254,8 @@
   }
 
   function reloadAll() {
-    frames.forEach(function (f) {
-      if (currentUrl) f.webview.reload();
-    });
+    if (!currentUrl) return;
+    frames.forEach(function (f) { f.webview.reload(); });
   }
 
   function clearAll() {
@@ -163,8 +264,8 @@
     try { localStorage.removeItem('mfdt-url'); } catch (e) {}
     frames.forEach(function (f) {
       f.webview.setAttribute('src', 'about:blank');
-      f.pillHost.textContent = 'Search or enter website';
-      f.querySelector('.pill .lock').style.display = 'none';
+      var pillHost = f.shell.querySelector('.pill .host');
+      if (pillHost) pillHost.textContent = 'Search or enter website';
       setNote(f, '');
     });
   }
@@ -188,8 +289,7 @@
     authModal.hidden = false;
     authUser.focus();
 
-    // Test-only: --authfill=user:pass answers the dialog automatically.
-    var fill = new URLSearchParams(location.search).get('authfill');
+    var fill = qs.get('authfill');   // test-only: answers the dialog automatically
     if (fill) {
       var i = fill.indexOf(':');
       authUser.value = fill.slice(0, i);
@@ -219,7 +319,24 @@
 
   /* ---------- wire up ---------- */
 
-  frames.forEach(buildFrame);
+  var setup = null;
+  try { setup = JSON.parse(localStorage.getItem('mfdt-frames') || 'null'); } catch (e) {}
+  if (!setup || !setup.length) setup = DEFAULT_SETUP;
+  setup.forEach(function (cfg) { if (DEVICES[cfg.dev]) addFrame(cfg); });
+  if (!frames.length) DEFAULT_SETUP.forEach(addFrame);
+
+  addSel.innerHTML = '<option value="">+ Add device</option>' +
+    Object.keys(DEVICES).map(function (k) {
+      return '<option value="' + k + '">' + DEVICES[k].name + '</option>';
+    }).join('');
+  addSel.addEventListener('change', function () {
+    if (addSel.value) {
+      addFrame({ dev: addSel.value });
+      saveFrames();
+      railBox.scrollLeft = railBox.scrollWidth;
+    }
+    addSel.value = '';
+  });
 
   document.getElementById('load').addEventListener('click', function () { load(urlBox.value); });
   document.getElementById('reload').addEventListener('click', reloadAll);
@@ -227,7 +344,7 @@
   urlBox.addEventListener('keydown', function (e) { if (e.key === 'Enter') load(urlBox.value); });
 
   // --url= from the command line wins over the remembered URL (and is not saved).
-  var cliUrl = new URLSearchParams(location.search).get('u');
+  var cliUrl = qs.get('u');
   var saved = '';
   try { saved = localStorage.getItem('mfdt-url') || ''; } catch (e) {}
   if (cliUrl) { urlBox.value = cliUrl; load(cliUrl, true); }

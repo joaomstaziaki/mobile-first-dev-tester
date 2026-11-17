@@ -13,17 +13,16 @@
     <input id="url" type="text" placeholder="localhost:3000  ·  staging.example.com  ·  any URL" spellcheck="false">
     <button id="load">Load</button>
     <button id="reload" title="Reload the frame (after you save your code)">Reload</button>
-    <button id="clear" title="Unload the frame and forget the saved URL">Clear</button>
+    <button id="clear" title="Unload every frame and forget the saved URL">Clear</button>
+    <select id="adddev" title="Add another device frame"></select>
     <div class="hint">
-      Enter loads. The frame is a real browser viewport at the width shown — your media queries evaluate
-      there exactly as on the device — with an iPhone user agent and 3× pixel ratio, so sites serve their
-      mobile versions. Edit the size boxes to test another device size.
+      Enter loads every frame. Each frame is a real browser viewport at the width shown — your media
+      queries evaluate there exactly as on the device — with that device's user agent and pixel ratio,
+      so sites serve their mobile versions. Edit the size boxes for a custom size, ⟳ rotates, × removes.
     </div>
   </header>
 
-  <main id="frames">
-    <div class="frame" data-device="iPhone 13" data-screen="390" data-h="844"></div>
-  </main>
+  <main id="frames"></main>
 
   <div id="authmodal" hidden>
     <form id="authform">
