@@ -246,6 +246,11 @@
     });
     wv.addEventListener('did-fail-load', function (e) {
       if (!e.isMainFrame || e.errorCode === -3 || netMode === 'offline') return;
+      if (/CERT|SSL/.test(e.errorDescription || '')) {
+        setNote(f, 'Certificate not trusted (' + e.errorDescription + '). Reload to get the ' +
+          'proceed-anyway prompt, or use your dev tool\'s Trust option (LocalWP: SSL → Trust).', true);
+        return;
+      }
       setNote(f, 'Could not load ' + (e.validatedURL || currentUrl) + ' — ' +
         e.errorDescription + '. Is the dev server running?', true);
     });
@@ -483,6 +488,43 @@
     answerAuth(true);
   });
   document.getElementById('authcancel').addEventListener('click', function () { answerAuth(false); });
+
+  /* ---------- untrusted dev certificate dialog ---------- */
+
+  var certModal = document.getElementById('certmodal');
+  var certWhere = document.getElementById('certwhere');
+  var certQueue = [];
+  var certCurrent = null;
+
+  function nextCert() {
+    certCurrent = certQueue.shift() || null;
+    if (!certCurrent) { certModal.hidden = true; return; }
+    certWhere.textContent = certCurrent.host + ' — ' + certCurrent.error;
+    certModal.hidden = false;
+    if (qs.get('certfill') === '1') answerCert(true);   // test-only
+  }
+
+  function answerCert(ok) {
+    if (!certCurrent) return;
+    window.devTester.sendCert(certCurrent.host, ok);
+    var wasHost = certCurrent.host;
+    nextCert();
+    // The failed loads are dead; bring the frames back on the approved host.
+    if (ok && currentUrl && hostOf(currentUrl) === wasHost) {
+      setTimeout(reloadAll, 150);
+    }
+  }
+
+  window.devTester.onCertRequest(function (req) {
+    certQueue.push(req);
+    if (!certCurrent) nextCert();
+  });
+
+  document.getElementById('certform').addEventListener('submit', function (e) {
+    e.preventDefault();
+    answerCert(true);
+  });
+  document.getElementById('certcancel').addEventListener('click', function () { answerCert(false); });
 
   /* ---------- wire up ---------- */
 

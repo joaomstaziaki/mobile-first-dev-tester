@@ -19,5 +19,9 @@ contextBridge.exposeInMainWorld('devTester', {
 
   // HTTP basic auth: main asks the UI for credentials; the UI answers.
   onAuthRequest: (handler) => ipcRenderer.on('auth-request', (e, req) => handler(req)),
-  sendAuth: (id, user, pass) => ipcRenderer.send('auth-response', id, user, pass)
+  sendAuth: (id, user, pass) => ipcRenderer.send('auth-response', id, user, pass),
+
+  // Untrusted dev certificates: main asks, the UI answers per host.
+  onCertRequest: (handler) => ipcRenderer.on('cert-request', (e, req) => handler(req)),
+  sendCert: (host, ok) => ipcRenderer.send('cert-response', host, ok)
 });

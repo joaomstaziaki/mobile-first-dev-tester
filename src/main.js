@@ -38,7 +38,7 @@ function createWindow() {
   if (argValue('emu')) query.emu = argValue('emu');
   if (argValue('authfill')) query.authfill = argValue('authfill'); // test-only
   if (argValue('exec')) query.exec = argValue('exec');             // test-only
-  ['darkall', 'touch', 'net', 'zoom', 'shotall', 'opendevtools', 'toggletouch'].forEach((k) => {  // test-only overrides
+  ['darkall', 'touch', 'net', 'zoom', 'shotall', 'opendevtools', 'toggletouch', 'certfill'].forEach((k) => {  // test-only overrides
     if (argValue(k)) query[k] = argValue(k);
   });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'), { query });
@@ -202,6 +202,34 @@ ipcMain.on('auth-response', (event, id, user, pass) => {
   if (user == null) cb();        // cancelled: the site's 401 page shows
   else cb(user, pass);           // Chromium caches it for the session on success
 });
+
+// Self-signed dev certificates (LocalWP .local sites and the like): ask the
+// user per host, like a browser's "proceed anyway", remembered per session.
+const certApproved = new Set();
+const certPending = new Map();   // host -> held callbacks
+
+function flushCert(host, ok) {
+  (certPending.get(host) || []).forEach((cb) => { try { cb(ok); } catch (e) {} });
+  certPending.delete(host);
+  if (ok) certApproved.add(host);
+}
+
+app.on('certificate-error', (event, wc, url, error, certificate, callback) => {
+  let host = '';
+  try { host = new URL(url).host; } catch (e) {}
+  if (!host) { callback(false); return; }
+  event.preventDefault();
+  if (certApproved.has(host)) { callback(true); return; }
+  if (certPending.has(host)) { certPending.get(host).push(callback); return; }
+  certPending.set(host, [callback]);
+  if (mainWin && !mainWin.isDestroyed()) {
+    mainWin.webContents.send('cert-request', { host, error });
+  } else {
+    flushCert(host, false);
+  }
+});
+
+ipcMain.on('cert-response', (event, host, ok) => flushCert(host, !!ok));
 
 app.whenReady().then(() => {
   mainWin = createWindow();

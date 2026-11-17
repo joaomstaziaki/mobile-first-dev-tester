@@ -58,6 +58,20 @@
     </form>
   </div>
 
+  <div id="certmodal" hidden>
+    <form id="certform">
+      <h2>Certificate not trusted</h2>
+      <p id="certwhere"></p>
+      <p class="certmsg">This is normal for local dev sites with self-signed certificates
+        (LocalWP: the "Trust" button next to SSL fixes it permanently). Only proceed if
+        this is your own dev site.</p>
+      <div class="row">
+        <button type="button" id="certcancel">Cancel</button>
+        <button type="submit" id="certok">Proceed anyway</button>
+      </div>
+    </form>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>

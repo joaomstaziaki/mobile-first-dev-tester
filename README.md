@@ -35,6 +35,11 @@ Per frame: device preset, editable width × height, ⟳ rotate, **Dark**
 HTTP basic auth (nginx-protected staging sites): a Sign in dialog appears on
 challenge; credentials go straight to the request, nothing is stored on disk.
 
+Self-signed certificates (LocalWP `.local` sites and other local HTTPS dev
+servers): a "Certificate not trusted — proceed anyway?" prompt appears per
+host, remembered for the session. For a permanent fix, trust the certificate
+in your dev tool (LocalWP: SSL → Trust).
+
 Frame setup, URL, toggles and recents are remembered across launches.
 
 ## Build a Windows app
