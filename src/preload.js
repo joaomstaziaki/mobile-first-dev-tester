@@ -15,6 +15,10 @@ contextBridge.exposeInMainWorld('devTester', {
   setTouch: (webContentsId, on) => ipcRenderer.invoke('set-touch', webContentsId, on),
   setNetwork: (profile) => ipcRenderer.invoke('set-network', profile),
 
+  // Screenshots: full-page capture of a frame, saved under Pictures.
+  capture: (webContentsId, meta) => ipcRenderer.invoke('capture', webContentsId, meta),
+  showItem: (p) => ipcRenderer.invoke('show-item', p),
+
   // HTTP basic auth: main asks the UI for credentials; the UI answers.
   onAuthRequest: (handler) => ipcRenderer.on('auth-request', (e, req) => handler(req)),
   sendAuth: (id, user, pass) => ipcRenderer.send('auth-response', id, user, pass)

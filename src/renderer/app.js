@@ -121,6 +121,47 @@
   function setNote(f, msg, warn) {
     f.note.textContent = msg || '';
     f.note.className = 'note' + (warn ? ' warn' : '');
+    f.notePath = null;
+  }
+
+  /* ---------- screenshots ---------- */
+
+  function shotFrame(f) {
+    return new Promise(function (done) {
+    var d = DEVICES[f.dev];
+    var meta = {
+      host: hostOf(currentUrl || ''),
+      device: d.name,
+      w: f.w, h: f.h,
+      kind: d.kind, dpr: d.dpr,
+      vh: f.webview.clientHeight || 600
+    };
+    var id;
+    var wv = f.webview;
+    try { id = wv.getWebContentsId(); } catch (e) { done(); return; }
+    setNote(f, 'Capturing…');
+    // Viewport capture: exactly what the frame shows, fold and all.
+    window.devTester.capture(id, meta).then(function (r) {
+      if (r && r.path) {
+        setNote(f, 'Saved ' + r.name + ' — click to show in folder');
+        f.note.classList.add('link');
+        f.notePath = r.path;
+      } else {
+        setNote(f, 'Screenshot failed: ' + (r && r.error || 'unknown'), true);
+      }
+      done();
+    }).catch(function (e) {
+      setNote(f, 'Screenshot failed: ' + e.message, true);
+      done();
+    });
+    });
+  }
+
+  // One frame at a time: several giant surfaces at once can stall the compositor.
+  function shotAll() {
+    frames.reduce(function (p, f) {
+      return p.then(function () { return shotFrame(f); });
+    }, Promise.resolve());
   }
 
   function saveFrames() {
@@ -265,6 +306,8 @@
       '<input class="hh" type="number" min="400" max="2000" title="Screen height, px">' +
       '<button class="rot" title="Rotate (swap width and height)">⟳</button>' +
       '<button class="dk" title="Emulate prefers-color-scheme: dark in this frame">Dark</button>' +
+      '<button class="dt" title="Open DevTools for this frame">dev</button>' +
+      '<button class="cam" title="Save a full-page screenshot of this frame">📷</button>' +
       '<a class="open" title="Open the current URL in your default browser">open</a>' +
       '<button class="x" title="Remove this frame">×</button></div>' +
       '<div class="note"></div>' +
@@ -310,6 +353,13 @@
       wBox.value = f.w; hBox.value = f.h;
       size(f); saveFrames();
     });
+    el.querySelector('.dt').addEventListener('click', function () {
+      try { f.webview.openDevTools(); } catch (e) {}
+    });
+    el.querySelector('.cam').addEventListener('click', function () { shotFrame(f); });
+    f.note.addEventListener('click', function () {
+      if (f.notePath) window.devTester.showItem(f.notePath);
+    });
     var dkBtn = el.querySelector('.dk');
     dkBtn.classList.toggle('on', f.dark);
     dkBtn.addEventListener('click', function () {
@@ -338,11 +388,29 @@
 
   /* ---------- loading ---------- */
 
+  function addRecent(raw) {
+    try {
+      var list = JSON.parse(localStorage.getItem('mfdt-recents') || '[]');
+      list = [raw].concat(list.filter(function (x) { return x !== raw; })).slice(0, 12);
+      localStorage.setItem('mfdt-recents', JSON.stringify(list));
+      fillRecents(list);
+    } catch (e) {}
+  }
+
+  function fillRecents(list) {
+    document.getElementById('recentlist').innerHTML = (list || []).map(function (u) {
+      return '<option value="' + u.replace(/"/g, '&quot;') + '"></option>';
+    }).join('');
+  }
+
   function load(raw, noSave) {
     var url = toUrl(raw);
     if (!url) return;
     currentUrl = url;
-    if (!noSave) try { localStorage.setItem('mfdt-url', raw.trim()); } catch (e) {}
+    if (!noSave) {
+      try { localStorage.setItem('mfdt-url', raw.trim()); } catch (e) {}
+      addRecent(raw.trim());
+    }
     frames.forEach(function (f) {
       setNote(f, '');
       f.webview.setAttribute('src', url);
@@ -485,6 +553,17 @@
     applyZoom();
   });
   applyZoom();
+
+  document.getElementById('shotall').addEventListener('click', shotAll);
+  try { fillRecents(JSON.parse(localStorage.getItem('mfdt-recents') || '[]')); } catch (e) {}
+
+  // Test-only flags: exercise the UI without a human at the keyboard.
+  if (qs.get('shotall') === '1') setTimeout(shotAll, 10000);
+  if (qs.get('opendevtools') === '1') {
+    setTimeout(function () {
+      if (frames[0]) try { frames[0].webview.openDevTools(); } catch (e) {}
+    }, 9000);
+  }
 
   // Test-only: --exec="…" runs JS inside the first frame a few seconds after
   // start, to exercise sync without a human at the keyboard.

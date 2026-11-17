@@ -37,7 +37,7 @@ function createWindow() {
   if (argValue('emu')) query.emu = argValue('emu');
   if (argValue('authfill')) query.authfill = argValue('authfill'); // test-only
   if (argValue('exec')) query.exec = argValue('exec');             // test-only
-  ['darkall', 'touch', 'net', 'zoom'].forEach((k) => {             // test-only overrides
+  ['darkall', 'touch', 'net', 'zoom', 'shotall', 'opendevtools'].forEach((k) => {  // test-only overrides
     if (argValue(k)) query[k] = argValue(k);
   });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'), { query });
@@ -101,6 +101,39 @@ ipcMain.handle('set-dark', (event, id, on) => {
 ipcMain.handle('set-touch', async (event, id, on) => {
   await cdp(id, 'Emulation.setTouchEmulationEnabled', { enabled: !!on, maxTouchPoints: 5 });
   await cdp(id, 'Emulation.setEmitTouchEventsForMouse', { enabled: !!on, configuration: 'mobile' });
+});
+
+// Full-page screenshot of a frame: CDP captures beyond the viewport at the
+// frame's real pixel ratio; plain capturePage is the fallback.
+function shotDir() {
+  return argValue('shotdir') ||
+    path.join(app.getPath('pictures'), 'Mobile-First Dev Tester');
+}
+
+ipcMain.handle('capture', async (event, id, meta) => {
+  const wc = webContents.fromId(id);
+  if (!wc || wc.isDestroyed()) return { error: 'frame is gone' };
+  // The guest surface is exactly the webview element's size, and the renderer
+  // grows the element to the page's full height before calling this (CDP's
+  // captureBeyondViewport tiles the viewport when device emulation is on).
+  let buf;
+  try { buf = (await wc.capturePage()).toPNG(); }
+  catch (e) { return { error: e.message }; }
+  if (!buf || !buf.length) return { error: 'empty capture' };
+  const dir = shotDir();
+  const clean = (s) => String(s || '').replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '');
+  const ts = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
+  const name = [clean(meta.host) || 'page', clean(meta.device), meta.w + 'x' + meta.h, ts]
+    .join('_') + '.png';
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, name), buf);
+  } catch (e) { return { error: e.message }; }
+  return { path: path.join(dir, name), name };
+});
+
+ipcMain.handle('show-item', (event, p) => {
+  if (typeof p === 'string' && p.startsWith(shotDir())) shell.showItemInFolder(p);
 });
 
 // Network throttling: session-wide, so every frame feels the same network.

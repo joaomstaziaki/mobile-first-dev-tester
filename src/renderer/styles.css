@@ -126,6 +126,7 @@ body {
   max-width: 390px;
 }
 .frame .note.warn { color: #f5b36b; }
+.frame .note.link { color: #9cf; cursor: pointer; text-decoration: underline; }
 
 /* ---- phone shell: status bar, screen, Safari bottom bar, home indicator ---- */
 

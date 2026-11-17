@@ -10,10 +10,13 @@
 </head>
 <body>
   <header id="topbar">
-    <input id="url" type="text" placeholder="localhost:3000  ·  staging.example.com  ·  any URL" spellcheck="false">
+    <input id="url" type="text" list="recentlist"
+           placeholder="localhost:3000  ·  staging.example.com  ·  any URL" spellcheck="false">
+    <datalist id="recentlist"></datalist>
     <button id="load">Load</button>
     <button id="reload" title="Reload the frame (after you save your code)">Reload</button>
     <button id="clear" title="Unload every frame and forget the saved URL">Clear</button>
+    <button id="shotall" title="Save a full-page screenshot of every frame to Pictures\Mobile-First Dev Tester">Shot all</button>
     <select id="adddev" title="Add another device frame"></select>
     <label class="tog" title="Scroll one frame and the others follow (proportionally)">
       <input type="checkbox" id="syncscroll"> Sync scroll</label>
