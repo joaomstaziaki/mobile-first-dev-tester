@@ -36,6 +36,7 @@ function createWindow() {
   if (startUrl) query.u = startUrl;
   if (argValue('emu')) query.emu = argValue('emu');
   if (argValue('authfill')) query.authfill = argValue('authfill'); // test-only
+  if (argValue('exec')) query.exec = argValue('exec');             // test-only
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'), { query });
 
   if (shotPath) {

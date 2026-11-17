@@ -46,6 +46,18 @@ body {
 }
 #topbar button:hover { background: #3a3a3a; }
 
+#topbar .tog {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: #ccc;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+#topbar .tog input { accent-color: #9cf; cursor: pointer; }
+
 #topbar .hint { width: 100%; color: #888; font-size: 12px; }
 #topbar .hint b { color: #bbb; font-weight: 600; }
 

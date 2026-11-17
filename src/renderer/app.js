@@ -35,6 +35,10 @@
   var frames = [];
   var currentUrl = '';
   var qs = new URLSearchParams(location.search);
+  var WV_PRELOAD = new URL('../webview-preload.js', location.href).href;
+
+  var syncScroll = localStorage.getItem('mfdt-sync-scroll') !== '0';
+  var syncClicks = localStorage.getItem('mfdt-sync-clicks') !== '0';
 
   /* ---------- helpers ---------- */
 
@@ -48,6 +52,41 @@
 
   function hostOf(u) {
     try { return new URL(u).host; } catch (e) { return u; }
+  }
+
+  // Same page despite device-specific hosts: en.m.wikipedia.org == en.wikipedia.org.
+  function normUrl(u) {
+    try {
+      var x = new URL(u);
+      var host = x.host.split('.').filter(function (s) {
+        return s !== 'm' && s !== 'www' && s !== 'mobile';
+      }).join('.');
+      return host + x.pathname + x.search;
+    } catch (e) { return u; }
+  }
+
+  function broadcast(from, channel, payload) {
+    frames.forEach(function (o) {
+      if (o === from || !o.webview) return;
+      try { o.webview.send(channel, payload); } catch (e) {}
+    });
+  }
+
+  // A frame navigated somewhere new (a clicked link, a redirect the others
+  // missed): bring the rest of the rail along.
+  function maybeSyncNav(f, url) {
+    if (!syncClicks || !currentUrl || !url || url === 'about:blank') return;
+    if (normUrl(url) === normUrl(currentUrl)) return;
+    currentUrl = url;
+    urlBox.value = url;
+    frames.forEach(function (o) {
+      if (o === f || !o.webview) return;
+      var there = '';
+      try { there = o.webview.getURL(); } catch (e) {}
+      if (normUrl(there) !== normUrl(url)) {
+        try { o.webview.loadURL(url); } catch (e) {}
+      }
+    });
   }
 
   function setNote(f, msg, warn) {
@@ -99,6 +138,7 @@
     if (f.webview) { f.webview.remove(); f.webview = null; }
     f.emulated = false;
     var wv = document.createElement('webview');
+    wv.setAttribute('preload', WV_PRELOAD);
     wv.setAttribute('useragent', UAS[DEVICES[f.dev].kind]);
     wv.setAttribute('src', currentUrl || 'about:blank');
     f.webview = wv;
@@ -119,8 +159,16 @@
         });
       }
     });
-    wv.addEventListener('did-navigate', function (e) { onNav(f, e.url); });
+    wv.addEventListener('did-navigate', function (e) {
+      onNav(f, e.url);
+      maybeSyncNav(f, e.url);
+    });
     wv.addEventListener('did-navigate-in-page', function (e) { onNav(f, e.url); });
+    wv.addEventListener('ipc-message', function (e) {
+      if (f.webview !== wv) return;
+      if (e.channel === 'sync-scroll' && syncScroll) broadcast(f, 'apply-scroll', e.args[0]);
+      else if (e.channel === 'sync-click' && syncClicks) broadcast(f, 'apply-click', e.args[0]);
+    });
     wv.addEventListener('did-fail-load', function (e) {
       if (e.errorCode === -3 || !e.isMainFrame) return;
       setNote(f, 'Could not load ' + (e.validatedURL || currentUrl) + ' — ' +
@@ -337,6 +385,27 @@
     }
     addSel.value = '';
   });
+
+  var scrollTog = document.getElementById('syncscroll');
+  var clickTog = document.getElementById('syncclicks');
+  scrollTog.checked = syncScroll;
+  clickTog.checked = syncClicks;
+  scrollTog.addEventListener('change', function () {
+    syncScroll = scrollTog.checked;
+    try { localStorage.setItem('mfdt-sync-scroll', syncScroll ? '1' : '0'); } catch (e) {}
+  });
+  clickTog.addEventListener('change', function () {
+    syncClicks = clickTog.checked;
+    try { localStorage.setItem('mfdt-sync-clicks', syncClicks ? '1' : '0'); } catch (e) {}
+  });
+
+  // Test-only: --exec="…" runs JS inside the first frame a few seconds after
+  // start, to exercise sync without a human at the keyboard.
+  if (qs.get('exec')) {
+    setTimeout(function () {
+      if (frames[0]) frames[0].webview.executeJavaScript(qs.get('exec')).catch(function () {});
+    }, 8000);
+  }
 
   document.getElementById('load').addEventListener('click', function () { load(urlBox.value); });
   document.getElementById('reload').addEventListener('click', reloadAll);

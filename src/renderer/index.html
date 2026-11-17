@@ -15,6 +15,10 @@
     <button id="reload" title="Reload the frame (after you save your code)">Reload</button>
     <button id="clear" title="Unload every frame and forget the saved URL">Clear</button>
     <select id="adddev" title="Add another device frame"></select>
+    <label class="tog" title="Scroll one frame and the others follow (proportionally)">
+      <input type="checkbox" id="syncscroll"> Sync scroll</label>
+    <label class="tog" title="Clicks and navigation are mirrored to the other frames">
+      <input type="checkbox" id="syncclicks"> Sync clicks</label>
     <div class="hint">
       Enter loads every frame. Each frame is a real browser viewport at the width shown — your media
       queries evaluate there exactly as on the device — with that device's user agent and pixel ratio,
