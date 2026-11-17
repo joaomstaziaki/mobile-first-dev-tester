@@ -38,7 +38,8 @@
   var qs = new URLSearchParams(location.search);
   var WV_PRELOAD = new URL('../webview-preload.js', location.href).href;
 
-  var syncScroll = localStorage.getItem('mfdt-sync-scroll') !== '0';
+  // Scrolling is per-viewport unless the user opts in to linked scrolling.
+  var syncScroll = localStorage.getItem('mfdt-sync-scroll') === '1';
   var syncClicks = localStorage.getItem('mfdt-sync-clicks') !== '0';
   var touchOn = qs.get('touch') ? qs.get('touch') === '1' : localStorage.getItem('mfdt-touch') === '1';
   var netMode = qs.get('net') || localStorage.getItem('mfdt-net') || 'online';

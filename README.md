@@ -22,7 +22,7 @@ link; the whole rail navigates. Flip one frame dark while its twin stays light.
 | Load / Reload / Clear | Load, reload all frames (dev servers with HMR reload themselves), unload everything. |
 | Shot all | Save a screenshot of every frame to `Pictures\Mobile-First Dev Tester` (exact viewport, what you see). |
 | + Add device | Append another frame: iPhone SE / 13-14 / 15-16 / 15 Pro Max, Galaxy S23, Pixel 8, iPad Mini / Air, Desktop 1280 / 1440. |
-| Sync scroll | Scroll one frame, the others follow proportionally. |
+| Sync scroll | Off by default — each viewport scrolls on its own. Turn on to have the other frames follow proportionally. |
 | Sync clicks | Clicks are replayed in the other frames; navigation follows too (mobile-host redirects like `m.` are recognised, no ping-pong). |
 | Touch | Mouse input becomes touch events in phone/tablet frames (`pointer: coarse`, 5 touch points). |
 | Network | Online / Fast 3G / Slow 3G / Offline — session-wide. Offline really blocks (cache included). |
