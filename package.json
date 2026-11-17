@@ -1,0 +1,18 @@
+{
+  "name": "mobile-first-dev-tester",
+  "productName": "Mobile-First Dev Tester",
+  "version": "0.1.0",
+  "description": "Mobile-first tester and emulator for web dev — device frames with real viewports, side by side.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "mmpro",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^38.2.0"
+  },
+  "allowScripts": {
+    "electron@38.8.6": true
+  }
+}
