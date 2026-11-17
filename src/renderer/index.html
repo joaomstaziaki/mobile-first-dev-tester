@@ -2,21 +2,29 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'">
+  <!-- 'unsafe-inline' for styles: Electron's <webview> sizes its internal
+       frame with an injected inline style, which a stricter policy blocks. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
   <title>Mobile-First Dev Tester</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header id="topbar">
-    <span class="logo">Mobile-First Dev Tester</span>
-    <span class="hint">Task 1 scaffold — URL bar and device frames arrive in task 2.</span>
-  </header>
-  <main id="frames">
-    <div class="placeholder">
-      <p>Scaffold is running.</p>
-      <p class="sub">Electron <span id="ver"></span></p>
+    <input id="url" type="text" placeholder="localhost:3000  ·  staging.example.com  ·  any URL" spellcheck="false">
+    <button id="load">Load</button>
+    <button id="reload" title="Reload the frame (after you save your code)">Reload</button>
+    <button id="clear" title="Unload the frame and forget the saved URL">Clear</button>
+    <div class="hint">
+      Enter loads. The frame is a real browser viewport at the width shown — your media queries evaluate
+      there exactly as on the device — with an iPhone user agent and 3× pixel ratio, so sites serve their
+      mobile versions. Edit the size boxes to test another device size.
     </div>
+  </header>
+
+  <main id="frames">
+    <div class="frame" data-device="iPhone 13" data-screen="390" data-h="844"></div>
   </main>
+
   <script src="app.js"></script>
 </body>
 </html>

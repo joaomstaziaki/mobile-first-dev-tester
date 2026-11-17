@@ -19,13 +19,35 @@ body {
   border-bottom: 1px solid #333;
   padding: 10px 16px;
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
   flex-wrap: wrap;
 }
 
-#topbar .logo { font-weight: 600; color: #eee; }
-#topbar .hint { color: #888; font-size: 12px; }
+#topbar input[type=text] {
+  flex: 1;
+  min-width: 320px;
+  padding: 8px 10px;
+  font: 13px/1.2 ui-monospace, Consolas, monospace;
+  background: #000;
+  color: #eee;
+  border: 1px solid #444;
+  border-radius: 4px;
+}
+
+#topbar button {
+  padding: 8px 12px;
+  font: 13px system-ui, sans-serif;
+  background: #2a2a2a;
+  color: #eee;
+  border: 1px solid #555;
+  border-radius: 4px;
+  cursor: pointer;
+}
+#topbar button:hover { background: #3a3a3a; }
+
+#topbar .hint { width: 100%; color: #888; font-size: 12px; }
+#topbar .hint b { color: #bbb; font-weight: 600; }
 
 #frames {
   flex: 1 1 auto;
@@ -36,10 +58,132 @@ body {
   overflow: auto;
 }
 
-.placeholder {
-  margin: auto;
-  text-align: center;
-  color: #888;
+/* ---- per-frame header bar ---- */
+
+.frame { flex: none; }
+
+.frame .bar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 6px;
+  color: #aaa;
+  font-size: 12px;
+  flex-wrap: wrap;
 }
-.placeholder p { margin: 4px 0; font-size: 16px; }
-.placeholder .sub { font-size: 12px; color: #666; }
+.frame .bar b { color: #eee; font-size: 13px; margin-right: 2px; }
+.frame .bar input {
+  width: 44px;
+  padding: 3px 4px;
+  text-align: right;
+  font: 12px ui-monospace, Consolas, monospace;
+  background: #000;
+  color: #eee;
+  border: 1px solid #444;
+  border-radius: 3px;
+}
+.frame .bar a { color: #9cf; margin-left: auto; cursor: pointer; }
+
+.frame .note {
+  margin: 0 0 6px;
+  color: #888;
+  font-size: 11px;
+  line-height: 1.35;
+  min-height: 15px;
+  max-width: 390px;
+}
+.frame .note.warn { color: #f5b36b; }
+
+/* ---- phone shell: status bar, screen, Safari bottom bar, home indicator ---- */
+
+.shell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-sizing: content-box;
+  background: #fff;
+  border: 7px solid #2a2a2a;
+  border-radius: 36px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px #000, 0 10px 30px rgba(0, 0, 0, .5);
+}
+
+.shell .status,
+.shell .safaribar,
+.shell .home {
+  flex: none;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+  user-select: none;
+}
+
+.shell .status {
+  height: 47px;
+  padding: 4px 30px 0;
+  justify-content: space-between;
+  font-size: 15px;
+  font-weight: 600;
+  color: #000;
+  background: #f9f9f9;
+}
+
+.shell .screen {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  justify-content: center;
+  background: #fff;
+}
+.shell webview {
+  border: 0;
+  background: #fff;
+  align-self: stretch;
+  flex: none;
+}
+
+/* Safari's bottom chrome (iOS 15+): address pill above a small toolbar */
+.shell .safaribar {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px 10px 2px;
+  background: #f9f9f9;
+  border-top: 1px solid #d1d1d1;
+}
+.shell .safaribar .pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  border-radius: 12px;
+  background: #e9e9eb;
+  color: #000;
+  font-size: 15px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.shell .safaribar .pill .lock { font-size: 11px; color: #555; }
+.shell .safaribar .tools {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 18px 0;
+  font-size: 19px;
+  color: #007aff;
+}
+.shell .safaribar .tools .off { color: #b9b9bd; }
+
+.shell .home {
+  height: 34px;
+  justify-content: center;
+  background: #f9f9f9;
+}
+.shell .home i {
+  display: block;
+  width: 139px;
+  height: 5px;
+  border-radius: 3px;
+  background: #000;
+}
