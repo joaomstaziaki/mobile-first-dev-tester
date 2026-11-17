@@ -19,6 +19,20 @@
       <input type="checkbox" id="syncscroll"> Sync scroll</label>
     <label class="tog" title="Clicks and navigation are mirrored to the other frames">
       <input type="checkbox" id="syncclicks"> Sync clicks</label>
+    <label class="tog" title="Mouse input becomes touch events in phone and tablet frames, like DevTools device mode">
+      <input type="checkbox" id="touchtog"> Touch</label>
+    <select id="net" title="Network throttling, applied to every frame">
+      <option value="online">Online</option>
+      <option value="fast3g">Fast 3G</option>
+      <option value="slow3g">Slow 3G</option>
+      <option value="offline">Offline</option>
+    </select>
+    <select id="zoom" title="Zoom the rail; Fit scales it to the window (viewports stay honest — it is only visual)">
+      <option value="fit">Fit</option>
+      <option value="1">100%</option>
+      <option value="0.75">75%</option>
+      <option value="0.5">50%</option>
+    </select>
     <div class="hint">
       Enter loads every frame. Each frame is a real browser viewport at the width shown — your media
       queries evaluate there exactly as on the device — with that device's user agent and pixel ratio,
@@ -26,7 +40,7 @@
     </div>
   </header>
 
-  <main id="frames"></main>
+  <main id="frames"><div id="railscale"></div></main>
 
   <div id="authmodal" hidden>
     <form id="authform">

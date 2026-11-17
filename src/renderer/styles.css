@@ -63,11 +63,17 @@ body {
 
 #frames {
   flex: 1 1 auto;
-  display: flex;
-  gap: 24px;
   padding: 20px 16px;
-  align-items: flex-start;
   overflow: auto;
+}
+
+/* The rail: scaled as one unit by the Zoom control (transform keeps the
+   frames' layout size, so every viewport stays its honest width). */
+#railscale {
+  display: inline-flex;
+  gap: 24px;
+  align-items: flex-start;
+  transform-origin: 0 0;
 }
 
 /* ---- per-frame header bar ---- */
@@ -280,6 +286,30 @@ body {
   border-radius: 6px;
   box-shadow: none;
 }
+
+/* ---- dark mode: the device's own chrome darkens with the page ---- */
+
+.frame .bar .dk.on { background: #e6e6e6; color: #111; border-color: #e6e6e6; }
+
+.shell.dark, .shell.dark .screen, .shell.dark webview { background: #000; }
+.shell.dark .status,
+.shell.dark .safaribar,
+.shell.dark .padbar,
+.shell.dark .home { background: #1c1c1e; border-color: #38383a; }
+.shell.dark .status { color: #fff; }
+.shell.dark .safaribar .pill,
+.shell.dark .padbar .pill { background: #2c2c2e; color: #fff; }
+.shell.dark .safaribar .pill .lock,
+.shell.dark .padbar .pill .lock { color: #aaa; }
+.shell.dark .home i { background: #fff; }
+
+.shell.android.dark, .shell.android.dark .screen, .shell.android.dark webview { background: #202124; }
+.shell.android.dark .status,
+.shell.android.dark .chromebar,
+.shell.android.dark .home { background: #202124; border-color: #3c4043; color: #e8eaed; }
+.shell.android.dark .chromebar .pill { background: #303134; color: #e8eaed; }
+.shell.android.dark .chromebar .pill .lock,
+.shell.android.dark .chromebar .dots { color: #9aa0a6; }
 
 /* ---- HTTP basic-auth sign-in dialog ---- */
 

@@ -37,6 +37,9 @@ function createWindow() {
   if (argValue('emu')) query.emu = argValue('emu');
   if (argValue('authfill')) query.authfill = argValue('authfill'); // test-only
   if (argValue('exec')) query.exec = argValue('exec');             // test-only
+  ['darkall', 'touch', 'net', 'zoom'].forEach((k) => {             // test-only overrides
+    if (argValue(k)) query[k] = argValue(k);
+  });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'), { query });
 
   if (shotPath) {
@@ -75,6 +78,53 @@ ipcMain.handle('emulate', (event, id, params) => {
 
 ipcMain.handle('open-external', (event, url) => {
   if (/^https?:/i.test(url)) shell.openExternal(url);
+});
+
+// CDP commands against a frame's webContents (dark mode, touch emulation).
+function cdp(id, method, params) {
+  const wc = webContents.fromId(id);
+  if (!wc || wc.isDestroyed()) return Promise.resolve();
+  try {
+    if (!wc.debugger.isAttached()) wc.debugger.attach('1.3');
+  } catch (e) { return Promise.resolve(); }
+  return wc.debugger.sendCommand(method, params).catch(() => {});
+}
+
+// prefers-color-scheme per frame; '' returns the page to the OS setting.
+ipcMain.handle('set-dark', (event, id, on) => {
+  return cdp(id, 'Emulation.setEmulatedMedia', {
+    features: [{ name: 'prefers-color-scheme', value: on ? 'dark' : '' }]
+  });
+});
+
+// Touch emulation: the mouse emits touch events, like DevTools device mode.
+ipcMain.handle('set-touch', async (event, id, on) => {
+  await cdp(id, 'Emulation.setTouchEmulationEnabled', { enabled: !!on, maxTouchPoints: 5 });
+  await cdp(id, 'Emulation.setEmitTouchEventsForMouse', { enabled: !!on, configuration: 'mobile' });
+});
+
+// Network throttling: session-wide, so every frame feels the same network.
+const NET_PROFILES = {
+  online: null,
+  fast3g: { latency: 170, downloadThroughput: 200 * 1024, uploadThroughput: 94 * 1024 },
+  slow3g: { latency: 400, downloadThroughput: 50 * 1024, uploadThroughput: 50 * 1024 },
+  offline: { offline: true, latency: 0, downloadThroughput: 0, uploadThroughput: 0 }
+};
+ipcMain.handle('set-network', (event, key) => {
+  if (!(key in NET_PROFILES)) return;
+  const { session } = require('electron');
+  const ses = session.defaultSession;
+  const p = NET_PROFILES[key];
+  if (p) ses.enableNetworkEmulation(p);
+  else ses.disableNetworkEmulation();
+  // Throttling only affects the network layer; cached pages would still load
+  // instantly. Offline must mean offline, so block requests outright too.
+  if (key === 'offline') {
+    ses.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] },
+      (details, cb) => cb({ cancel: true }));
+  } else {
+    ses.webRequest.onBeforeRequest(null);
+  }
 });
 
 // HTTP basic auth (e.g. an nginx-protected dev/staging site): Electron shows

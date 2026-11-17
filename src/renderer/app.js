@@ -31,6 +31,7 @@
 
   var urlBox = document.getElementById('url');
   var railBox = document.getElementById('frames');
+  var railScale = document.getElementById('railscale');
   var addSel = document.getElementById('adddev');
   var frames = [];
   var currentUrl = '';
@@ -39,13 +40,41 @@
 
   var syncScroll = localStorage.getItem('mfdt-sync-scroll') !== '0';
   var syncClicks = localStorage.getItem('mfdt-sync-clicks') !== '0';
+  var touchOn = qs.get('touch') ? qs.get('touch') === '1' : localStorage.getItem('mfdt-touch') === '1';
+  var netMode = qs.get('net') || localStorage.getItem('mfdt-net') || 'online';
+  var zoomMode = qs.get('zoom') || localStorage.getItem('mfdt-zoom') || 'fit';
+
+  /* ---------- zoom: scale the rail visually, keep viewports honest ---------- */
+
+  function applyZoom() {
+    var z = 1;
+    railScale.style.transform = '';
+    railScale.style.marginRight = '';
+    railScale.style.marginBottom = '';
+    if (zoomMode === 'fit') {
+      var w = railScale.offsetWidth;
+      var avail = railBox.clientWidth - 4;
+      z = w > avail ? Math.max(0.25, avail / w) : 1;
+    } else {
+      z = parseFloat(zoomMode) || 1;
+    }
+    if (z !== 1) {
+      railScale.style.transform = 'scale(' + z + ')';
+      railScale.style.marginRight = -(railScale.offsetWidth * (1 - z)) + 'px';
+      railScale.style.marginBottom = -(railScale.offsetHeight * (1 - z)) + 'px';
+    }
+  }
+  window.addEventListener('resize', applyZoom);
 
   /* ---------- helpers ---------- */
 
   function toUrl(raw) {
     var p = raw.trim().replace(/^["']|["']$/g, '');
     if (!p) return '';
-    if (/^https?:\/\//i.test(p)) return p;
+    if (/^(https?|file):/i.test(p)) return p;
+    if (/^[a-zA-Z]:[\\\/]/.test(p)) {        // a local file path
+      return 'file:///' + p.replace(/\\/g, '/').split('/').map(encodeURIComponent).join('/');
+    }
     if (/^(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)([:\/]|$)/i.test(p)) return 'http://' + p;
     return 'https://' + p;
   }
@@ -97,7 +126,7 @@
   function saveFrames() {
     try {
       localStorage.setItem('mfdt-frames', JSON.stringify(frames.map(function (f) {
-        return { dev: f.dev, w: f.w, h: f.h };
+        return { dev: f.dev, w: f.w, h: f.h, dark: f.dark };
       })));
     } catch (e) {}
   }
@@ -147,9 +176,10 @@
     wv.addEventListener('dom-ready', function () {
       if (f.webview !== wv) return;
       var d = DEVICES[f.dev];
+      var id = wv.getWebContentsId();
       if (!f.emulated && d.kind !== 'desktop' && qs.get('emu') !== '0') {
         f.emulated = true;
-        window.devTester.emulate(wv.getWebContentsId(), {
+        window.devTester.emulate(id, {
           screenPosition: 'mobile',
           screenSize: { width: f.w, height: f.h },
           viewSize: { width: 0, height: 0 },
@@ -158,6 +188,8 @@
           scale: 1
         });
       }
+      if (f.dark) window.devTester.setDark(id, true);
+      if (touchOn && d.kind !== 'desktop') window.devTester.setTouch(id, true);
     });
     wv.addEventListener('did-navigate', function (e) {
       onNav(f, e.url);
@@ -170,11 +202,13 @@
       else if (e.channel === 'sync-click' && syncClicks) broadcast(f, 'apply-click', e.args[0]);
     });
     wv.addEventListener('did-fail-load', function (e) {
-      if (e.errorCode === -3 || !e.isMainFrame) return;
+      if (!e.isMainFrame || e.errorCode === -3 || netMode === 'offline') return;
       setNote(f, 'Could not load ' + (e.validatedURL || currentUrl) + ' — ' +
         e.errorDescription + '. Is the dev server running?', true);
     });
-    wv.addEventListener('did-start-loading', function () { setNote(f, 'Loading…'); });
+    wv.addEventListener('did-start-loading', function () {
+      if (netMode !== 'offline') setNote(f, 'Loading…');
+    });
     wv.addEventListener('did-stop-loading', function () {
       if (f.note.textContent === 'Loading…') setNote(f, '');
     });
@@ -201,6 +235,7 @@
     f.shell.style.height = f.h + 'px';
     f.webview.style.width = f.w + 'px';
     f.el.style.width = f.shell.offsetWidth + 'px';
+    applyZoom();
     if (f.emulated) {
       f.emulated = false;             // re-apply with the new screen size
       try { f.webview.reload(); } catch (e) {}
@@ -213,6 +248,7 @@
     if (!d) return;
     f.w = cfg.w || d.w;
     f.h = cfg.h || d.h;
+    f.dark = !!cfg.dark || qs.get('darkall') === '1';
 
     var el = document.createElement('div');
     el.className = 'frame';
@@ -228,6 +264,7 @@
       '<input class="w" type="number" min="280" max="2000" title="Viewport width, px">×' +
       '<input class="hh" type="number" min="400" max="2000" title="Screen height, px">' +
       '<button class="rot" title="Rotate (swap width and height)">⟳</button>' +
+      '<button class="dk" title="Emulate prefers-color-scheme: dark in this frame">Dark</button>' +
       '<a class="open" title="Open the current URL in your default browser">open</a>' +
       '<button class="x" title="Remove this frame">×</button></div>' +
       '<div class="note"></div>' +
@@ -245,7 +282,7 @@
 
     function rebuildShell() {
       var kind = DEVICES[f.dev].kind;
-      f.shell.className = 'shell ' + kind;
+      f.shell.className = 'shell ' + kind + (f.dark ? ' dark' : '');
       f.shell.innerHTML = shellHtml(kind);
       var back = f.shell.querySelector('.back');
       var fwd = f.shell.querySelector('.fwd');
@@ -273,6 +310,15 @@
       wBox.value = f.w; hBox.value = f.h;
       size(f); saveFrames();
     });
+    var dkBtn = el.querySelector('.dk');
+    dkBtn.classList.toggle('on', f.dark);
+    dkBtn.addEventListener('click', function () {
+      f.dark = !f.dark;
+      dkBtn.classList.toggle('on', f.dark);
+      f.shell.classList.toggle('dark', f.dark);
+      try { window.devTester.setDark(f.webview.getWebContentsId(), f.dark); } catch (e) {}
+      saveFrames();
+    });
     el.querySelector('.open').addEventListener('click', function () {
       if (currentUrl) window.devTester.openExternal(currentUrl);
     });
@@ -280,11 +326,13 @@
       frames.splice(frames.indexOf(f), 1);
       el.remove();
       saveFrames();
+      applyZoom();
     });
 
-    railBox.appendChild(el);   // attach first: sizing reads offsetWidth
+    railScale.appendChild(el);   // attach first: sizing reads offsetWidth
     rebuildShell();
     frames.push(f);
+    applyZoom();
     return f;
   }
 
@@ -299,6 +347,7 @@
       setNote(f, '');
       f.webview.setAttribute('src', url);
     });
+    showNetNotes();
   }
 
   function reloadAll() {
@@ -399,6 +448,44 @@
     try { localStorage.setItem('mfdt-sync-clicks', syncClicks ? '1' : '0'); } catch (e) {}
   });
 
+  var touchTog = document.getElementById('touchtog');
+  touchTog.checked = touchOn;
+  touchTog.addEventListener('change', function () {
+    touchOn = touchTog.checked;
+    try { localStorage.setItem('mfdt-touch', touchOn ? '1' : '0'); } catch (e) {}
+    frames.forEach(function (f) {
+      if (DEVICES[f.dev].kind === 'desktop') return;
+      try { window.devTester.setTouch(f.webview.getWebContentsId(), touchOn); } catch (e) {}
+    });
+  });
+
+  function showNetNotes() {
+    frames.forEach(function (f) {
+      if (netMode === 'offline') setNote(f, 'Offline: the network is set to Offline in the toolbar.', true);
+      else if (f.note.textContent.indexOf('Offline:') === 0) setNote(f, '');
+    });
+  }
+
+  var netSel = document.getElementById('net');
+  netSel.value = netMode;
+  var netReady = Promise.resolve(window.devTester.setNetwork(netMode)).catch(function () {});
+  if (netMode === 'offline') showNetNotes();
+  netSel.addEventListener('change', function () {
+    netMode = netSel.value;
+    try { localStorage.setItem('mfdt-net', netMode); } catch (e) {}
+    window.devTester.setNetwork(netMode);
+    showNetNotes();
+  });
+
+  var zoomSel = document.getElementById('zoom');
+  zoomSel.value = zoomMode;
+  zoomSel.addEventListener('change', function () {
+    zoomMode = zoomSel.value;
+    try { localStorage.setItem('mfdt-zoom', zoomMode); } catch (e) {}
+    applyZoom();
+  });
+  applyZoom();
+
   // Test-only: --exec="…" runs JS inside the first frame a few seconds after
   // start, to exercise sync without a human at the keyboard.
   if (qs.get('exec')) {
@@ -413,9 +500,12 @@
   urlBox.addEventListener('keydown', function (e) { if (e.key === 'Enter') load(urlBox.value); });
 
   // --url= from the command line wins over the remembered URL (and is not saved).
-  var cliUrl = qs.get('u');
-  var saved = '';
-  try { saved = localStorage.getItem('mfdt-url') || ''; } catch (e) {}
-  if (cliUrl) { urlBox.value = cliUrl; load(cliUrl, true); }
-  else if (saved) { urlBox.value = saved; load(saved); }
+  // Wait for network emulation to be in place so the first load honours it.
+  netReady.then(function () {
+    var cliUrl = qs.get('u');
+    var saved = '';
+    try { saved = localStorage.getItem('mfdt-url') || ''; } catch (e) {}
+    if (cliUrl) { urlBox.value = cliUrl; load(cliUrl, true); }
+    else if (saved) { urlBox.value = saved; load(saved); }
+  });
 })();
