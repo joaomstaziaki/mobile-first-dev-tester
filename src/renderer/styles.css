@@ -187,3 +187,61 @@ body {
   border-radius: 3px;
   background: #000;
 }
+
+/* ---- HTTP basic-auth sign-in dialog ---- */
+
+#authmodal {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, .55);
+}
+#authmodal[hidden] { display: none; }
+
+#authform {
+  width: 340px;
+  background: #222;
+  border: 1px solid #555;
+  border-radius: 8px;
+  padding: 18px 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .6);
+}
+#authform h2 { margin: 0 0 4px; font-size: 16px; color: #eee; }
+#authform p { margin: 0 0 14px; font-size: 12px; color: #9c9; word-break: break-all; }
+#authform label {
+  display: block;
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: #aaa;
+}
+#authform input {
+  display: block;
+  width: 100%;
+  margin-top: 3px;
+  padding: 7px 9px;
+  font: 13px ui-monospace, Consolas, monospace;
+  background: #000;
+  color: #eee;
+  border: 1px solid #444;
+  border-radius: 4px;
+}
+#authform .row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+#authform button {
+  padding: 7px 14px;
+  font: 13px system-ui, sans-serif;
+  background: #2a2a2a;
+  color: #eee;
+  border: 1px solid #555;
+  border-radius: 4px;
+  cursor: pointer;
+}
+#authform button[type=submit] { background: #e6e6e6; color: #111; border-color: #e6e6e6; }
+#authform button:hover { filter: brightness(1.15); }

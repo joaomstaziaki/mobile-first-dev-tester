@@ -169,6 +169,54 @@
     });
   }
 
+  /* ---------- HTTP basic-auth dialog ---------- */
+
+  var authModal = document.getElementById('authmodal');
+  var authWhere = document.getElementById('authwhere');
+  var authUser = document.getElementById('authuser');
+  var authPass = document.getElementById('authpass');
+  var authQueue = [];
+  var authCurrent = null;
+
+  function nextAuth() {
+    authCurrent = authQueue.shift() || null;
+    if (!authCurrent) { authModal.hidden = true; return; }
+    authWhere.textContent = (authCurrent.isProxy ? 'Proxy ' : '') + authCurrent.host +
+      (authCurrent.realm ? ' — "' + authCurrent.realm + '"' : '');
+    authUser.value = '';
+    authPass.value = '';
+    authModal.hidden = false;
+    authUser.focus();
+
+    // Test-only: --authfill=user:pass answers the dialog automatically.
+    var fill = new URLSearchParams(location.search).get('authfill');
+    if (fill) {
+      var i = fill.indexOf(':');
+      authUser.value = fill.slice(0, i);
+      authPass.value = fill.slice(i + 1);
+      answerAuth(true);
+    }
+  }
+
+  function answerAuth(ok) {
+    if (!authCurrent) return;
+    if (ok) window.devTester.sendAuth(authCurrent.id, authUser.value, authPass.value);
+    else window.devTester.sendAuth(authCurrent.id, null, null);
+    authPass.value = '';
+    nextAuth();
+  }
+
+  window.devTester.onAuthRequest(function (req) {
+    authQueue.push(req);
+    if (!authCurrent) nextAuth();
+  });
+
+  document.getElementById('authform').addEventListener('submit', function (e) {
+    e.preventDefault();
+    answerAuth(true);
+  });
+  document.getElementById('authcancel').addEventListener('click', function () { answerAuth(false); });
+
   /* ---------- wire up ---------- */
 
   frames.forEach(buildFrame);

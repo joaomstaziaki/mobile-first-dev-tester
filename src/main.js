@@ -35,6 +35,7 @@ function createWindow() {
   const query = {};
   if (startUrl) query.u = startUrl;
   if (argValue('emu')) query.emu = argValue('emu');
+  if (argValue('authfill')) query.authfill = argValue('authfill'); // test-only
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'), { query });
 
   if (shotPath) {
@@ -75,10 +76,42 @@ ipcMain.handle('open-external', (event, url) => {
   if (/^https?:/i.test(url)) shell.openExternal(url);
 });
 
+// HTTP basic auth (e.g. an nginx-protected dev/staging site): Electron shows
+// no login prompt of its own, so ask the user through a dialog in the UI.
+// Credentials go straight to the auth callback and are never written anywhere.
+let mainWin = null;
+let authSeq = 0;
+const authCallbacks = new Map();
+
+app.on('login', (event, wc, details, authInfo, callback) => {
+  event.preventDefault();
+  const id = ++authSeq;
+  authCallbacks.set(id, callback);
+  if (mainWin && !mainWin.isDestroyed()) {
+    mainWin.webContents.send('auth-request', {
+      id,
+      host: authInfo.host + (authInfo.port ? ':' + authInfo.port : ''),
+      realm: authInfo.realm || '',
+      isProxy: !!authInfo.isProxy
+    });
+  } else {
+    authCallbacks.delete(id);
+    callback(); // no UI to ask: cancel the challenge
+  }
+});
+
+ipcMain.on('auth-response', (event, id, user, pass) => {
+  const cb = authCallbacks.get(id);
+  if (!cb) return;
+  authCallbacks.delete(id);
+  if (user == null) cb();        // cancelled: the site's 401 page shows
+  else cb(user, pass);           // Chromium caches it for the session on success
+});
+
 app.whenReady().then(() => {
-  createWindow();
+  mainWin = createWindow();
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) mainWin = createWindow();
   });
 });
 

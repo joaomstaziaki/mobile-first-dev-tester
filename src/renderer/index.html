@@ -25,6 +25,19 @@
     <div class="frame" data-device="iPhone 13" data-screen="390" data-h="844"></div>
   </main>
 
+  <div id="authmodal" hidden>
+    <form id="authform">
+      <h2>Sign in</h2>
+      <p id="authwhere"></p>
+      <label>Username <input id="authuser" type="text" autocomplete="off" spellcheck="false"></label>
+      <label>Password <input id="authpass" type="password" autocomplete="off"></label>
+      <div class="row">
+        <button type="button" id="authcancel">Cancel</button>
+        <button type="submit" id="authok">Sign in</button>
+      </div>
+    </form>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>
