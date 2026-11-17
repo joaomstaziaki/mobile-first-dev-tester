@@ -23,6 +23,7 @@ function createWindow() {
     minHeight: 500,
     backgroundColor: '#1b1b1b',
     title: 'Mobile-First Dev Tester',
+    icon: path.join(__dirname, '..', 'build', 'icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       webviewTag: true,        // device frames are <webview>s

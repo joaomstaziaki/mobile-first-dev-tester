@@ -5,12 +5,34 @@
   "description": "Mobile-first tester and emulator for web dev — device frames with real viewports, side by side.",
   "main": "src/main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "build": {
+    "appId": "com.mmpro.mobile-first-dev-tester",
+    "productName": "Mobile-First Dev Tester",
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false
+    }
   },
   "author": "mmpro",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^38.2.0"
+    "electron": "^38.2.0",
+    "electron-builder": "^26.18.0"
   },
   "allowScripts": {
     "electron@38.8.6": true
